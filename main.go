@@ -2,10 +2,8 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -39,19 +37,16 @@ func main() {
 
 			var stacks []string
 			for i, funcName := range funcNames {
-				slog.Info(strconv.Itoa(i), "funcName", funcName, "len(funcName)", len(funcName), "maxLenOfFuncName", maxLenOfFuncName)
-				prefix := ""
-				if len(funcName) < maxLenOfFuncName {
-					prefix += funcName + strings.Repeat(" ", maxLenOfFuncName-len(funcName))
-					log.Println("0 prefix", prefix)
-				} else {
-					prefix += funcName
-					log.Println("1 prefix", prefix)
-				}
+				padding := lo.Ternary(
+					len(funcName) < maxLenOfFuncName,
+					strings.Repeat(" ", maxLenOfFuncName-len(funcName)),
+					"",
+				)
 
-				suffix := fileAndLines[i]
-
-				stacks = append(stacks, fmt.Sprintf("%s %s", prefix, suffix))
+				stacks = append(
+					stacks,
+					funcName+padding+"  "+fileAndLines[i],
+				)
 			}
 
 			fmt.Print(strings.Join(stacks, "\n"))
