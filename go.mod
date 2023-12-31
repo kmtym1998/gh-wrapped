@@ -2,7 +2,10 @@ module github.com/kmtym1998/gh-wrapped
 
 go 1.21.0
 
-require github.com/cli/go-gh/v2 v2.4.0
+require (
+	github.com/cli/go-gh/v2 v2.4.0
+	github.com/samber/lo v1.39.0
+)
 
 require (
 	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
@@ -16,6 +19,7 @@ require (
 	github.com/muesli/termenv v0.13.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/thlib/go-timezone-local v0.0.0-20210907160436-ef149e42d28e // indirect
+	golang.org/x/exp v0.0.0-20220303212507-bbda1eaf7a17 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/term v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
