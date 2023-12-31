@@ -14,6 +14,8 @@ import (
 
 func main() {
 	cfg := config.Parse()
+
+	// TODO: kmtym1998/handyman への以降
 	defer func() {
 		if err := recover(); err != nil {
 			slog.Error("Panic", "error", err)
