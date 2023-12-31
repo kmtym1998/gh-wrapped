@@ -13,7 +13,7 @@ type Config struct {
 	IncludePrivate bool
 }
 
-func Parse() (*Config, error) {
+func Parse() *Config {
 	debugMode := strings.ToUpper(os.Getenv("DEBUG")) == "TRUE"
 
 	flag.Parse()
@@ -26,5 +26,5 @@ func Parse() (*Config, error) {
 	return &Config{
 		DebugMode:      debugMode,
 		IncludePrivate: *includePrivate,
-	}, nil
+	}
 }
