@@ -6,8 +6,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/kmtym1998/gh-wrapped/config"
+	"github.com/kmtym1998/gh-wrapped/repository"
+	"github.com/kmtym1998/gh-wrapped/wrapper"
 	"github.com/m-mizutani/clog"
 	"github.com/samber/lo"
 )
@@ -57,20 +58,16 @@ func main() {
 
 	setupLogger(cfg)
 
-	panic("test")
+	repo, err := repository.NewGitHub()
+	if err != nil {
+		fatal("failed to create GitHub client: %v", err)
+	}
 
-	client, err := api.DefaultRESTClient()
+	pr, err := wrapper.WrapPullRequest(repo)
 	if err != nil {
-		fmt.Println(err)
-		return
+		fatal("failed to wrap pull requests: %v", err)
 	}
-	response := struct{ Login string }{}
-	err = client.Get("user", &response)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("running as %s\n", response.Login)
+	slog.Debug(fmt.Sprint(pr))
 }
 
 func setupLogger(cfg *config.Config) {
@@ -92,6 +89,7 @@ func setupLogger(cfg *config.Config) {
 
 func fatal(msg string, args ...interface{}) {
 	slog.Error(msg, args...)
+	panic(msg)
 }
 
 // For more examples of using go-gh, see:

@@ -8,7 +8,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/auth"
-	"github.com/volatiletech/null/v8"
 )
 
 type GitHubClient struct {
@@ -74,123 +73,9 @@ func (r *GitHubClient) ListOrganizations() ([]*Organization, error) {
 	return response, nil
 }
 
-type PullRequest struct {
-	ID              string           `json:"id"`
-	Number          int              `json:"number"`
-	Title           string           `json:"title"`
-	RepositoryOwner string           `json:"repositoryOwner"`
-	RepositoryName  string           `json:"repositoryName"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	MergedAt        null.Time        `json:"mergedAt"`
-	State           PullRequestState `json:"state"`
-	CommitsCount    int              `json:"commitsCount"`
-	CommentsCount   int              `json:"commentsCount"`
-	URL             string           `json:"url"`
-}
-
-type PullRequestState string
-
-const (
-	PullRequestStateOpen   PullRequestState = "OPEN"
-	PullRequestStateClosed PullRequestState = "CLOSED"
-	PullRequestStateMerged PullRequestState = "MERGED"
-)
-
-func (s PullRequestState) String() string {
-	return string(s)
-}
-
-func FromString(s string) PullRequestState {
-	switch s {
-	case "OPEN":
-		return PullRequestStateOpen
-	case "CLOSED":
-		return PullRequestStateClosed
-	case "MERGED":
-		return PullRequestStateMerged
-	default:
-		panic("invalid PullRequestState")
-	}
-}
-
 func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, error) {
-	const query = `
-query Wrapped($from: DateTime, $to: DateTime, $afterCursor: String) {
-  viewer {
-    contributionsCollection(from: $from, to: $to) {
-      pullRequestContributions(first: 100, after: $afterCursor) {
-        totalCount
-        pageInfo {
-          startCursor
-          endCursor
-          hasNextPage
-        }
-        nodes {
-          pullRequest {
-            id
-            number
-            title
-            repository {
-              owner {
-                id
-                login
-              }
-              name
-            }
-            commits {
-              totalCount
-            }
-            comments {
-              totalCount
-            }
-						state
-            createdAt
-            mergedAt
-          }
-        }
-      }
-    }
-  }
-}`
-
 	var cursor string
-	var response struct {
-		Viewer struct {
-			ContributionsCollection struct {
-				PullRequestContributions struct {
-					TotalCount int `json:"totalCount"`
-					PageInfo   struct {
-						StartCursor string `json:"startCursor"`
-						EndCursor   string `json:"endCursor"`
-						HasNextPage bool   `json:"hasNextPage"`
-					} `json:"pageInfo"`
-					Nodes []struct {
-						PullRequest struct {
-							ID         string `json:"id"`
-							Number     int    `json:"number"`
-							Title      string `json:"title"`
-							Repository struct {
-								Owner struct {
-									ID    string `json:"id"`
-									Login string `json:"login"`
-								} `json:"owner"`
-								Name string `json:"name"`
-							} `json:"repository"`
-							Commits struct {
-								TotalCount int `json:"totalCount"`
-							} `json:"commits"`
-							Comments struct {
-								TotalCount int `json:"totalCount"`
-							} `json:"comments"`
-							State     string    `json:"state"`
-							CreatedAt time.Time `json:"createdAt"`
-							MergedAt  null.Time `json:"mergedAt"`
-						} `json:"pullRequest"`
-					} `json:"nodes"`
-				} `json:"pullRequestContributions"`
-			} `json:"contributionsCollection"`
-		} `json:"viewer"`
-	}
+	var response WrapPullRequestsResponse
 	var pullRequests []*PullRequest
 	// TODO: プログレスの表示
 	for {
@@ -200,7 +85,7 @@ query Wrapped($from: DateTime, $to: DateTime, $afterCursor: String) {
 		}
 
 		if cursor != "" {
-			variables["afterCursor"] = cursor
+			variables["prAfterCursor"] = cursor
 		}
 
 		slog.Debug(
@@ -209,7 +94,7 @@ query Wrapped($from: DateTime, $to: DateTime, $afterCursor: String) {
 		)
 
 		if err := r.graphQLClient.Do(
-			query,
+			wrapPullRequestQuery,
 			variables,
 			&response,
 		); err != nil {
@@ -223,7 +108,7 @@ query Wrapped($from: DateTime, $to: DateTime, $afterCursor: String) {
 		}
 
 		for _, node := range response.Viewer.ContributionsCollection.PullRequestContributions.Nodes {
-			slog.Debug("debug", "title", node.PullRequest.Title, "createdAt", node.PullRequest.CreatedAt, "mergedAt", node.PullRequest.MergedAt)
+			// TODO: review と comment のページング
 
 			pullRequests = append(pullRequests, &PullRequest{
 				ID:              node.PullRequest.ID,
