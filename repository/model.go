@@ -22,7 +22,6 @@ type PullRequest struct {
 	State           PullRequestState
 	CommitsCount    int
 	CommentsCount   int
-	ReviewedBy      []string
 	Reviews         []PullRequestReview
 	URL             string
 }
@@ -35,8 +34,9 @@ type PullRequestReview struct {
 }
 
 type PullRequestComment struct {
-	ID     string
-	Author string
+	ID      string
+	Author  string
+	ReplyTo string
 }
 
 type PullRequestState string

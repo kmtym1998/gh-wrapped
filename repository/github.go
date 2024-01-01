@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"strconv"
 	"time"
@@ -118,10 +119,52 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 				RepositoryName:  node.PullRequest.Repository.Name,
 				CreatedAt:       node.PullRequest.CreatedAt,
 				MergedAt:        node.PullRequest.MergedAt,
+				State:           FromString(node.PullRequest.State),
 				CommitsCount:    node.PullRequest.Commits.TotalCount,
 				CommentsCount:   node.PullRequest.Comments.TotalCount,
-				State:           FromString(node.PullRequest.State),
-				URL:             "https://" + r.host + "/" + node.PullRequest.Repository.Owner.Login + "/" + node.PullRequest.Repository.Name + "/pull/" + strconv.Itoa(node.PullRequest.Number),
+				// NOTE: struct の定義がめんどくさくて lo.Map を使ってない
+				Reviews: func() []PullRequestReview {
+					var reviews []PullRequestReview
+					for _, review := range node.PullRequest.Reviews.Nodes {
+						var comments []PullRequestComment
+						for _, comment := range review.Comments.Nodes {
+							log.Printf("comment %+v", comment)
+							log.Printf("comment.ReplyTo %+v", comment.ReplyTo)
+							log.Printf("comment.ReplyTo == nil %+v", comment.ReplyTo == nil)
+							log.Printf("comment.ReplyTo != nil %+v", comment.ReplyTo != nil)
+							if comment.ReplyTo != nil {
+								log.Printf("comment.ReplyTo.ID %+v", comment.ReplyTo.ID)
+							}
+							comments = append(comments, PullRequestComment{
+								ID:     comment.ID,
+								Author: comment.Author.Login,
+								ReplyTo: func() string {
+									// NOTE: なんかこれだと動かなかった。nil ぽが起きる
+									// lo.Ternary(
+									// 	comment.ReplyTo != nil,
+									// 	comment.ReplyTo.ID,
+									// 	"",
+									// ),
+									if comment.ReplyTo != nil {
+										return comment.ReplyTo.ID
+									}
+
+									return ""
+								}(),
+							})
+						}
+
+						reviews = append(reviews, PullRequestReview{
+							ID:       review.ID,
+							Author:   review.Author.Login,
+							State:    review.State,
+							Comments: comments,
+						})
+					}
+
+					return reviews
+				}(),
+				URL: "https://" + r.host + "/" + node.PullRequest.Repository.Owner.Login + "/" + node.PullRequest.Repository.Name + "/pull/" + strconv.Itoa(node.PullRequest.Number),
 			})
 		}
 
