@@ -15,11 +15,15 @@ type GitHubClient struct {
 	restClient    *api.RESTClient
 	graphQLClient *api.GraphQLClient
 	host          string
+
+	// cache
+	authenticatedUser *PublicUser
 }
 
 type GitHubRepository interface {
 	ListOrganizations() ([]*Organization, error)
 	ListPullRequests(from, to time.Time) ([]*PullRequest, error)
+	GetMe() (*PublicUser, error)
 }
 
 func NewGitHub() (*GitHubClient, error) {
@@ -128,10 +132,6 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 					for _, review := range node.PullRequest.Reviews.Nodes {
 						var comments []PullRequestComment
 						for _, comment := range review.Comments.Nodes {
-							log.Printf("comment %+v", comment)
-							log.Printf("comment.ReplyTo %+v", comment.ReplyTo)
-							log.Printf("comment.ReplyTo == nil %+v", comment.ReplyTo == nil)
-							log.Printf("comment.ReplyTo != nil %+v", comment.ReplyTo != nil)
 							if comment.ReplyTo != nil {
 								log.Printf("comment.ReplyTo.ID %+v", comment.ReplyTo.ID)
 							}
