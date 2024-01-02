@@ -23,7 +23,7 @@ type WrapResultPullRequest struct {
 	// 作成 ~ マージまでが最も長かった PR (上位 3 つ)
 	LongestPullRequests []PullRequestDurationItem
 	// 作成 ~ マージまでの平均時間
-	AverageDuration time.Duration
+	AverageDuration PullRequestDuration
 	// コメントが最も多くつけられた PR
 	MostCommentedPullRequest SimplePullRequest
 	// コミットが最も多かった PR
@@ -42,6 +42,15 @@ type PullRequestDurationItem struct {
 type PullRequestSubmissionRankingItem struct {
 	PullRequest SimplePullRequest
 	Count       int
+}
+
+type PullRequestDuration struct {
+	Average      time.Duration
+	Min          time.Duration
+	Percentile50 time.Duration
+	Percentile90 time.Duration
+	Percentile99 time.Duration
+	Max          time.Duration
 }
 
 type SimplePullRequest struct {
@@ -69,17 +78,10 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 	result := WrapResultPullRequest{
 		Login:      user.Login,
 		TotalCount: len(pullRequests),
-		MergedCount: lo.CountBy(pullRequests, func(pr *repository.PullRequest) bool {
-			if pr.CreatedAt.Year() != cfg.Year() {
-				return false
-			}
-
-			if pr.MergedAt.Valid && pr.MergedAt.Time.Year() != cfg.Year() {
-				return false
-			}
-
-			return pr.State == repository.PullRequestStateMerged
-		}),
+		MergedCount: countPullRequestsMergedThisYear(
+			pullRequests,
+			cfg.Year(),
+		),
 		ClosedCount: lo.CountBy(pullRequests, func(pr *repository.PullRequest) bool {
 			if pr.CreatedAt.Year() != cfg.Year() {
 				return false
@@ -91,7 +93,7 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 			return pr.State == repository.PullRequestStateClosed
 		}),
-		ShortestPullRequests: PickTopNPullRequestsDurationItem(
+		ShortestPullRequests: pickTopNPullRequestsDurationItem(
 			pullRequests,
 			func(pr1, pr2 *repository.PullRequest) bool {
 				if pr1.State != repository.PullRequestStateMerged {
@@ -103,11 +105,11 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 				}
 
 				if pr2.State != repository.PullRequestStateMerged {
-					return false
+					return true
 				}
 
 				if !pr2.MergedAt.Valid {
-					return false
+					return true
 				}
 
 				sub1 := pr1.MergedAt.Time.Sub(pr1.CreatedAt)
@@ -117,45 +119,53 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 			},
 			3,
 		),
-		LongestPullRequests: func() []PullRequestDurationItem {
-			longestPR := lo.MaxBy(
-				pullRequests,
-				func(
-					pr *repository.PullRequest,
-					currentMax *repository.PullRequest,
-				) bool {
-					if pr.State != repository.PullRequestStateMerged {
-						return false
-					}
+		LongestPullRequests: pickTopNPullRequestsDurationItem(
+			pullRequests,
+			func(pr1, pr2 *repository.PullRequest) bool {
+				if pr1.State != repository.PullRequestStateMerged {
+					return false
+				}
 
-					if !pr.MergedAt.Valid {
-						return false
-					}
+				if !pr1.MergedAt.Valid {
+					return false
+				}
 
-					newSub := pr.MergedAt.Time.Sub(pr.CreatedAt)
-					currentMaxSub := currentMax.MergedAt.Time.Sub(currentMax.CreatedAt)
+				if pr2.State != repository.PullRequestStateMerged {
+					return true
+				}
 
-					return newSub > currentMaxSub
-				},
-			)
+				if !pr2.MergedAt.Valid {
+					return true
+				}
 
-			return []PullRequestDurationItem{{
-				PullRequest: SimplePullRequest{
-					Title:  longestPR.Title,
-					Owner:  longestPR.RepositoryOwner,
-					Repo:   longestPR.RepositoryName,
-					Number: longestPR.Number,
-					URL:    longestPR.URL,
-				},
-				Duration: longestPR.MergedAt.Time.Sub(longestPR.CreatedAt),
-			}}
+				sub1 := pr1.MergedAt.Time.Sub(pr1.CreatedAt)
+				sub2 := pr2.MergedAt.Time.Sub(pr2.CreatedAt)
+
+				return sub1 > sub2
+			},
+			3,
+		),
+		AverageDuration: func() time.Duration {
+			sum := lo.SumBy(pullRequests, func(pr *repository.PullRequest) time.Duration {
+				if pr.State != repository.PullRequestStateMerged {
+					return 0
+				}
+
+				if !pr.MergedAt.Valid {
+					return 0
+				}
+
+				return pr.MergedAt.Time.Sub(pr.CreatedAt)
+			})
+
+			return sum / time.Duration(countPullRequestsMergedThisYear(pullRequests, cfg.Year()))
 		}(),
 	}
 
 	return &result, nil
 }
 
-func PickTopNPullRequestsDurationItem(
+func pickTopNPullRequestsDurationItem(
 	list []*repository.PullRequest,
 	compareFunc func(a, b *repository.PullRequest) bool,
 	n int,
@@ -192,4 +202,18 @@ func PickTopNPullRequestsDurationItem(
 	}
 
 	return result
+}
+
+func countPullRequestsMergedThisYear(pullRequests []*repository.PullRequest, year int) int {
+	return lo.CountBy(pullRequests, func(pr *repository.PullRequest) bool {
+		if pr.CreatedAt.Year() != year {
+			return false
+		}
+
+		if pr.MergedAt.Valid && pr.MergedAt.Time.Year() != year {
+			return false
+		}
+
+		return pr.State == repository.PullRequestStateMerged
+	})
 }
