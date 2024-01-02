@@ -36,6 +36,7 @@ query WrapPullRequest($from: DateTime, $to: DateTime, $prAfterCursor: String) {
             }
             state
             createdAt
+            closedAt
             mergedAt
             reviews(first: 50) {
               totalCount
@@ -99,6 +100,7 @@ type WrapPullRequestsResponse struct {
 						} `json:"comments"`
 						State     string    `json:"state"`
 						CreatedAt time.Time `json:"createdAt"`
+						ClosedAt  null.Time `json:"closedAt"`
 						MergedAt  null.Time `json:"mergedAt"`
 						Reviews   struct {
 							TotalCount int      `json:"totalCount"`
