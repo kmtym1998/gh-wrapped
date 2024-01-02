@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
@@ -11,6 +12,7 @@ import (
 type Config struct {
 	DebugMode      bool
 	IncludePrivate bool
+	year           int
 }
 
 func Parse() *Config {
@@ -27,4 +29,15 @@ func Parse() *Config {
 		DebugMode:      debugMode,
 		IncludePrivate: *includePrivate,
 	}
+}
+
+func (c *Config) Year() int {
+	if c.year == 0 {
+		return 2021
+	}
+	return c.year
+}
+
+func (c *Config) YearString() string {
+	return strconv.Itoa(c.Year())
 }
