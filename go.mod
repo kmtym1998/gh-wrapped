@@ -4,6 +4,7 @@ go 1.21.0
 
 require (
 	github.com/cli/go-gh/v2 v2.4.0
+	github.com/kr/pretty v0.1.0
 	github.com/m-mizutani/clog v0.0.4
 	github.com/samber/lo v1.39.0
 	github.com/volatiletech/null/v8 v8.1.2

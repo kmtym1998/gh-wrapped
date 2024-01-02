@@ -9,6 +9,7 @@ import (
 	"github.com/kmtym1998/gh-wrapped/config"
 	"github.com/kmtym1998/gh-wrapped/repository"
 	"github.com/kmtym1998/gh-wrapped/wrapper"
+	"github.com/kr/pretty"
 	"github.com/m-mizutani/clog"
 	"github.com/samber/lo"
 )
@@ -67,7 +68,7 @@ func main() {
 	if err != nil {
 		fatal("failed to wrap pull requests: %v", err)
 	}
-	slog.Debug(fmt.Sprintf("%+v", pr))
+	pretty.Println(pr)
 }
 
 func setupLogger(cfg *config.Config) {
