@@ -88,7 +88,7 @@ func setupLogger(cfg *config.Config) {
 }
 
 func fatal(msg string, args ...interface{}) {
-	slog.Error(msg, args...)
+	slog.Error(fmt.Sprintf(msg, args...))
 	panic(msg)
 }
 
