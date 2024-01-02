@@ -63,7 +63,7 @@ func main() {
 		fatal("failed to create GitHub client: %v", err)
 	}
 
-	pr, err := wrapper.WrapPullRequest(repo)
+	pr, err := wrapper.WrapPullRequest(repo, cfg)
 	if err != nil {
 		fatal("failed to wrap pull requests: %v", err)
 	}
