@@ -91,6 +91,3 @@ func fatal(msg string, args ...interface{}) {
 	slog.Error(fmt.Sprintf(msg, args...))
 	panic(msg)
 }
-
-// For more examples of using go-gh, see:
-// https://github.com/cli/go-gh/blob/trunk/example_gh_test.go
