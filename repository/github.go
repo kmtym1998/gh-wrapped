@@ -121,6 +121,7 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 				RepositoryOwner: node.PullRequest.Repository.Owner.Login,
 				RepositoryName:  node.PullRequest.Repository.Name,
 				CreatedAt:       node.PullRequest.CreatedAt,
+				ClosedAt:        node.PullRequest.ClosedAt,
 				MergedAt:        node.PullRequest.MergedAt,
 				State:           FromString(node.PullRequest.State),
 				CommitsCount:    node.PullRequest.Commits.TotalCount,

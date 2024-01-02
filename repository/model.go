@@ -18,6 +18,7 @@ type PullRequest struct {
 	RepositoryOwner string
 	RepositoryName  string
 	CreatedAt       time.Time
+	ClosedAt        null.Time
 	MergedAt        null.Time
 	State           PullRequestState
 	CommitsCount    int
