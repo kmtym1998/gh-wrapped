@@ -5,14 +5,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/samber/lo"
 )
 
 type Config struct {
-	DebugMode      bool
-	IncludePrivate bool
-	year           int
+	DebugMode bool
+	year      int
 }
 
 func Parse() *Config {
@@ -20,14 +17,9 @@ func Parse() *Config {
 
 	flag.Parse()
 
-	includePrivate := flag.Bool("include-private", true, "Whether to include private repositories in the aggregation")
-	if includePrivate == nil {
-		includePrivate = lo.ToPtr(true)
-	}
-
 	return &Config{
-		DebugMode:      debugMode,
-		IncludePrivate: *includePrivate,
+		DebugMode: debugMode,
+		year:      2023,
 	}
 }
 

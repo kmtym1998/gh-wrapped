@@ -79,10 +79,11 @@ func (r *GitHubClient) ListOrganizations() ([]*Organization, error) {
 
 func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, error) {
 	var nextCursor string
-	var response WrapPullRequestsResponse
 	var pullRequests []*PullRequest
 	// TODO: プログレスの表示
 	for {
+		var response WrapPullRequestsResponse
+
 		variables := map[string]interface{}{
 			"from": from,
 			"to":   to,
@@ -166,6 +167,11 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 		}
 
 		if !response.Viewer.ContributionsCollection.PullRequestContributions.PageInfo.HasNextPage {
+			slog.Warn(
+				"debug total count",
+				"total", response.Viewer.ContributionsCollection.PullRequestContributions.TotalCount,
+				"len", len(pullRequests),
+			)
 			break
 		}
 
@@ -174,6 +180,11 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 		// レートリミット対策のために sleep
 		time.Sleep(1 * time.Second)
 	}
+
+	slog.Warn(
+		"debug total count",
+		"len", len(pullRequests),
+	)
 
 	return pullRequests, nil
 }

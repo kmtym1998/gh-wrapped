@@ -67,7 +67,7 @@ func main() {
 	if err != nil {
 		fatal("failed to wrap pull requests: %v", err)
 	}
-	slog.Debug(fmt.Sprint(pr))
+	slog.Debug(fmt.Sprintf("%+v", pr))
 }
 
 func setupLogger(cfg *config.Config) {
