@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"strconv"
 	"time"
@@ -79,7 +78,7 @@ func (r *GitHubClient) ListOrganizations() ([]*Organization, error) {
 }
 
 func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, error) {
-	var cursor string
+	var nextCursor string
 	var response WrapPullRequestsResponse
 	var pullRequests []*PullRequest
 	// TODO: プログレスの表示
@@ -89,8 +88,8 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 			"to":   to,
 		}
 
-		if cursor != "" {
-			variables["prAfterCursor"] = cursor
+		if nextCursor != "" {
+			variables["prAfterCursor"] = nextCursor
 		}
 
 		slog.Debug(
@@ -132,9 +131,6 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 					for _, review := range node.PullRequest.Reviews.Nodes {
 						var comments []PullRequestComment
 						for _, comment := range review.Comments.Nodes {
-							if comment.ReplyTo != nil {
-								log.Printf("comment.ReplyTo.ID %+v", comment.ReplyTo.ID)
-							}
 							comments = append(comments, PullRequestComment{
 								ID:     comment.ID,
 								Author: comment.Author.Login,
@@ -168,14 +164,14 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 			})
 		}
 
-		if response.Viewer.ContributionsCollection.PullRequestContributions.PageInfo.HasNextPage {
-			cursor = response.Viewer.ContributionsCollection.PullRequestContributions.PageInfo.EndCursor
-
-			// レートリミット対策のために sleep
-			time.Sleep(1 * time.Second)
-		} else {
+		if !response.Viewer.ContributionsCollection.PullRequestContributions.PageInfo.HasNextPage {
 			break
 		}
+
+		nextCursor = response.Viewer.ContributionsCollection.PullRequestContributions.PageInfo.EndCursor
+
+		// レートリミット対策のために sleep
+		time.Sleep(1 * time.Second)
 	}
 
 	return pullRequests, nil
