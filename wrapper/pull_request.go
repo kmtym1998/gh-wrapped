@@ -217,3 +217,48 @@ func countPullRequestsMergedThisYear(pullRequests []*repository.PullRequest, yea
 		return pr.State == repository.PullRequestStateMerged
 	})
 }
+
+// compareFunc で指定した順に昇順で並べた上で、パーセンタイルNの値を返す
+func percentileN[T any, U Number](
+	list []T,
+	n int,
+	compareFunc func(a, b T) bool,
+	valueFunc func(a T) U,
+) float64 {
+	if len(list) == 0 {
+		return 0
+	}
+
+	if n < 1 || n > 100 {
+		panic("n must be between 1 and 100")
+	}
+
+	copiedList := make([]T, len(list))
+	copy(copiedList, list)
+
+	sort.SliceStable(copiedList, func(i, j int) bool {
+		return compareFunc(copiedList[i], copiedList[j])
+	})
+
+	percentileIndexF := float64(len(list)) * float64(n) / 100
+	slog.Debug(fmt.Sprintf("percentileIndexF: %f", percentileIndexF))
+
+	percentileIndexGT := int(math.Ceil(percentileIndexF))
+	if percentileIndexGT >= len(list) {
+		percentileIndexGT = len(list) - 1
+	}
+	percentileIndexLT := int(math.Floor(percentileIndexF))
+	if percentileIndexLT >= len(list) {
+		percentileIndexLT = len(list) - 1
+	}
+
+	percentileGTVal := valueFunc(copiedList[percentileIndexGT])
+	percentileLTVal := valueFunc(copiedList[percentileIndexLT])
+
+	x := float64(percentileLTVal) * float64(n) / 100
+	y := math.Ceil(x)
+
+	remainder := float64(percentileGTVal-percentileLTVal) * (x - y)
+
+	return float64(percentileLTVal) + remainder
+}
