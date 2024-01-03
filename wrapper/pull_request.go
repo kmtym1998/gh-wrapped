@@ -7,6 +7,7 @@ import (
 
 	"github.com/kmtym1998/gh-wrapped/config"
 	"github.com/kmtym1998/gh-wrapped/repository"
+	"github.com/montanaflynn/stats"
 	"github.com/samber/lo"
 )
 
@@ -19,11 +20,11 @@ type WrapResultPullRequest struct {
 	// 当年に作成され、当年にマージされなかった、OPEN でない PR の数
 	ClosedCount int
 	// 作成 ~ マージまでが最も短かった PR (上位 3 つ)
-	ShortestPullRequests []PullRequestDurationItem
+	ShortLivePullRequests []PullRequestDurationItem
 	// 作成 ~ マージまでが最も長かった PR (上位 3 つ)
-	LongestPullRequests []PullRequestDurationItem
+	LongLiveRequests []PullRequestDurationItem
 	// 作成 ~ マージまでの平均時間
-	AverageDuration PullRequestDuration
+	DurationStats PullRequestDuration
 	// コメントが最も多くつけられた PR
 	MostCommentedPullRequest SimplePullRequest
 	// コミットが最も多かった PR
@@ -93,8 +94,9 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 			return pr.State == repository.PullRequestStateClosed
 		}),
-		ShortestPullRequests: pickTopNPullRequestsDurationItem(
+		ShortLivePullRequests: pickTopNPullRequestsDurationItem(
 			pullRequests,
+			3,
 			func(pr1, pr2 *repository.PullRequest) bool {
 				if pr1.State != repository.PullRequestStateMerged {
 					return false
@@ -117,10 +119,10 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 				return sub1 < sub2
 			},
-			3,
 		),
-		LongestPullRequests: pickTopNPullRequestsDurationItem(
+		LongLiveRequests: pickTopNPullRequestsDurationItem(
 			pullRequests,
+			3,
 			func(pr1, pr2 *repository.PullRequest) bool {
 				if pr1.State != repository.PullRequestStateMerged {
 					return false
@@ -143,9 +145,9 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 				return sub1 > sub2
 			},
-			3,
 		),
-		AverageDuration: func() time.Duration {
+		DurationStats: func() PullRequestDuration {
+			// average
 			sum := lo.SumBy(pullRequests, func(pr *repository.PullRequest) time.Duration {
 				if pr.State != repository.PullRequestStateMerged {
 					return 0
@@ -157,18 +159,48 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 				return pr.MergedAt.Time.Sub(pr.CreatedAt)
 			})
+			avg := sum / time.Duration(countPullRequestsMergedThisYear(pullRequests, cfg.Year()))
 
-			return sum / time.Duration(countPullRequestsMergedThisYear(pullRequests, cfg.Year()))
+			prLifetimes := lo.FilterMap(
+				pullRequests,
+				func(pr *repository.PullRequest, _ int) (float64, bool) {
+					if pr.State != repository.PullRequestStateMerged {
+						return 0, false
+					}
+
+					if !pr.MergedAt.Valid {
+						return 0, false
+					}
+
+					return float64(pr.MergedAt.Time.Sub(pr.CreatedAt)), true
+				},
+			)
+
+			return PullRequestDuration{
+				Average: avg,
+				Min:     time.Duration(lo.Min(prLifetimes)),
+				Percentile50: time.Duration(
+					lo.Must(stats.Percentile(prLifetimes, 50)),
+				) * time.Nanosecond,
+				Percentile90: time.Duration(
+					lo.Must(stats.Percentile(prLifetimes, 90)),
+				) * time.Nanosecond,
+				Percentile99: time.Duration(
+					lo.Must(stats.Percentile(prLifetimes, 99)),
+				) * time.Nanosecond,
+				Max: time.Duration(lo.Max(prLifetimes)),
+			}
 		}(),
 	}
 
 	return &result, nil
 }
 
+// compareFunc で指定した順に昇順で並べた上で、上位 n 件を返
 func pickTopNPullRequestsDurationItem(
 	list []*repository.PullRequest,
-	compareFunc func(a, b *repository.PullRequest) bool,
 	n int,
+	compareFunc func(a, b *repository.PullRequest) bool,
 ) []PullRequestDurationItem {
 	if n < 1 {
 		panic("n must be greater than 0")
@@ -204,6 +236,7 @@ func pickTopNPullRequestsDurationItem(
 	return result
 }
 
+// 該当の年に作成され、マージされた PR の数を返す
 func countPullRequestsMergedThisYear(pullRequests []*repository.PullRequest, year int) int {
 	return lo.CountBy(pullRequests, func(pr *repository.PullRequest) bool {
 		if pr.CreatedAt.Year() != year {
@@ -216,49 +249,4 @@ func countPullRequestsMergedThisYear(pullRequests []*repository.PullRequest, yea
 
 		return pr.State == repository.PullRequestStateMerged
 	})
-}
-
-// compareFunc で指定した順に昇順で並べた上で、パーセンタイルNの値を返す
-func percentileN[T any, U Number](
-	list []T,
-	n int,
-	compareFunc func(a, b T) bool,
-	valueFunc func(a T) U,
-) float64 {
-	if len(list) == 0 {
-		return 0
-	}
-
-	if n < 1 || n > 100 {
-		panic("n must be between 1 and 100")
-	}
-
-	copiedList := make([]T, len(list))
-	copy(copiedList, list)
-
-	sort.SliceStable(copiedList, func(i, j int) bool {
-		return compareFunc(copiedList[i], copiedList[j])
-	})
-
-	percentileIndexF := float64(len(list)) * float64(n) / 100
-	slog.Debug(fmt.Sprintf("percentileIndexF: %f", percentileIndexF))
-
-	percentileIndexGT := int(math.Ceil(percentileIndexF))
-	if percentileIndexGT >= len(list) {
-		percentileIndexGT = len(list) - 1
-	}
-	percentileIndexLT := int(math.Floor(percentileIndexF))
-	if percentileIndexLT >= len(list) {
-		percentileIndexLT = len(list) - 1
-	}
-
-	percentileGTVal := valueFunc(copiedList[percentileIndexGT])
-	percentileLTVal := valueFunc(copiedList[percentileIndexLT])
-
-	x := float64(percentileLTVal) * float64(n) / 100
-	y := math.Ceil(x)
-
-	remainder := float64(percentileGTVal-percentileLTVal) * (x - y)
-
-	return float64(percentileLTVal) + remainder
 }
