@@ -11,7 +11,7 @@ import (
 	"github.com/samber/lo"
 )
 
-type WrapResultPullRequest struct {
+type WrappedResultPullRequest struct {
 	Login string
 	// 当年のすべての PR の数
 	TotalCount int
@@ -26,11 +26,11 @@ type WrapResultPullRequest struct {
 	// 作成 ~ マージまでの平均時間
 	DurationStats PullRequestDuration
 	// コメントが最も多くつけられた PR
-	MostCommentedPullRequest SimplePullRequest
+	MostCommentedPullRequests []PullRequestRankingItem
 	// コミットが最も多かった PR
-	MostCommitsPullRequest SimplePullRequest
+	MostCommittedPullRequests []PullRequestRankingItem
 	// リポジトリごとに PR を出した数
-	SubmissionRanking []PullRequestSubmissionRankingItem
+	SubmissionRanking []PullRequestRankingItem
 	// 一番レビュー回数が多かったユーザー
 	MostReviewedBy string
 }
@@ -40,7 +40,7 @@ type PullRequestDurationItem struct {
 	Duration    time.Duration
 }
 
-type PullRequestSubmissionRankingItem struct {
+type PullRequestRankingItem struct {
 	PullRequest SimplePullRequest
 	Count       int
 }
@@ -62,7 +62,7 @@ type SimplePullRequest struct {
 	URL    string
 }
 
-func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*WrapResultPullRequest, error) {
+func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*WrappedResultPullRequest, error) {
 	user, err := repo.GetMe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -76,7 +76,7 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 		return nil, fmt.Errorf("failed to list pull requests: %w", err)
 	}
 
-	result := WrapResultPullRequest{
+	result := WrappedResultPullRequest{
 		Login:      user.Login,
 		TotalCount: len(pullRequests),
 		MergedCount: countPullRequestsMergedThisYear(
@@ -94,7 +94,7 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 
 			return pr.State == repository.PullRequestStateClosed
 		}),
-		ShortLivePullRequests: pickTopNPullRequestsDurationItem(
+		ShortLivePullRequests: pickTopNPullRequestsDurationItemAsc(
 			pullRequests,
 			3,
 			func(pr1, pr2 *repository.PullRequest) bool {
@@ -120,7 +120,7 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 				return sub1 < sub2
 			},
 		),
-		LongLiveRequests: pickTopNPullRequestsDurationItem(
+		LongLiveRequests: pickTopNPullRequestsDurationItemAsc(
 			pullRequests,
 			3,
 			func(pr1, pr2 *repository.PullRequest) bool {
@@ -191,13 +191,67 @@ func WrapPullRequest(repo repository.GitHubRepository, cfg *config.Config) (*Wra
 				Max: time.Duration(lo.Max(prLifetimes)),
 			}
 		}(),
+		MostCommentedPullRequests: pickTopNPullRequestRankingItemDesc(
+			pullRequests,
+			3,
+			func(pr *repository.PullRequest) int {
+				return pr.CommentsCount
+			},
+		),
+		MostCommittedPullRequests: pickTopNPullRequestRankingItemDesc(
+			pullRequests,
+			3,
+			func(pr *repository.PullRequest) int {
+				return pr.CommitsCount
+			},
+		),
 	}
 
 	return &result, nil
 }
 
-// compareFunc で指定した順に昇順で並べた上で、上位 n 件を返
-func pickTopNPullRequestsDurationItem(
+// valueFunc で指定した値の降順で並べた上で、上位 n 件を返す
+func pickTopNPullRequestRankingItemDesc(
+	list []*repository.PullRequest,
+	n int,
+	valueFunc func(pr *repository.PullRequest) int,
+) []PullRequestRankingItem {
+	if n < 1 {
+		panic("n must be greater than 0")
+	}
+
+	if valueFunc == nil {
+		panic("compareFunc must not be nil")
+	}
+
+	var copiedList []*repository.PullRequest
+	for _, pr := range list {
+		copiedList = append(copiedList, pr)
+	}
+
+	sort.SliceStable(copiedList, func(i, j int) bool {
+		return valueFunc(copiedList[i]) > valueFunc(copiedList[j])
+	})
+
+	var result []PullRequestRankingItem
+	for i := 0; i < n; i++ {
+		result = append(result, PullRequestRankingItem{
+			PullRequest: SimplePullRequest{
+				Title:  copiedList[i].Title,
+				Owner:  copiedList[i].RepositoryOwner,
+				Repo:   copiedList[i].RepositoryName,
+				Number: copiedList[i].Number,
+				URL:    copiedList[i].URL,
+			},
+			Count: valueFunc(copiedList[i]),
+		})
+	}
+
+	return result
+}
+
+// compareFunc で指定した順に昇順で並べた上で、上位 n 件を返す
+func pickTopNPullRequestsDurationItemAsc(
 	list []*repository.PullRequest,
 	n int,
 	compareFunc func(a, b *repository.PullRequest) bool,

@@ -85,8 +85,10 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 		var response WrapPullRequestsResponse
 
 		variables := map[string]interface{}{
-			"from": from,
-			"to":   to,
+			"from":                from,
+			"to":                  to,
+			"reviewsLimit":        reviewsLimit,
+			"reviewCommentsLimit": reviewCommentsLimit,
 		}
 
 		if nextCursor != "" {
@@ -126,7 +128,7 @@ func (r *GitHubClient) ListPullRequests(from, to time.Time) ([]*PullRequest, err
 				MergedAt:        node.PullRequest.MergedAt,
 				State:           FromString(node.PullRequest.State),
 				CommitsCount:    node.PullRequest.Commits.TotalCount,
-				CommentsCount:   node.PullRequest.Comments.TotalCount,
+				CommentsCount:   node.PullRequest.CommentsCount(),
 				// NOTE: struct の定義がめんどくさくて lo.Map を使ってない
 				Reviews: func() []PullRequestReview {
 					var reviews []PullRequestReview
