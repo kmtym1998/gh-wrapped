@@ -138,5 +138,9 @@ type ReviewCommentNode struct {
 }
 
 func (n PullRequestNode) CommentsCount() int {
+	for _, review := range n.Reviews.Nodes {
+		return len(review.Comments.Nodes)
+	}
+
 	return 0
 }
