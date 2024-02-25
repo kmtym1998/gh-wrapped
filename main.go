@@ -59,34 +59,6 @@ func main() {
 
 	setupLogger(cfg)
 
-	// list := []map[string]int{
-	// 	{"id": 5, "val": 3},
-	// 	{"id": 3, "val": 100},
-	// 	{"id": 2, "val": 2},
-	// 	{"id": 4, "val": 4},
-	// 	{"id": 6},
-	// 	{"id": 1, "val": 1},
-	// 	{"id": 7, "val": -1},
-	// }
-
-	// sort.Slice(list, func(i, j int) bool {
-	// 	slog.Debug("sort", "i", list[i], "j", list[j])
-
-	// 	if _, ok := list[i]["val"]; !ok {
-	// 		return false
-	// 	}
-
-	// 	if _, ok := list[j]["val"]; !ok {
-	// 		return true
-	// 	}
-
-	// 	return list[i]["val"] < list[j]["val"]
-	// })
-
-	// slog.Debug("sorted", "list", list)
-
-	// return
-
 	repo, err := repository.NewGitHub()
 	if err != nil {
 		fatal("failed to create GitHub client: %v", err)
